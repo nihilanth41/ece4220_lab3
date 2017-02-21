@@ -1,0 +1,48 @@
+#+AUTHOR: Zachary Rump
+#+DATE: 2017-02-20
+#+TITLE: ECE 4220
+#+OPTIONS: toc:nil H:4 num:0 ^:nil
+#+LATEX_HEADER: \usepackage[margin=0.5in]{geometry}
+\overfullrule=2cm
+* Prelab 3
+** Flowcharts
+*** Week 1
+#+ATTR_LATEX: :width 237px :height 376px
+[[./flowchart_pt1.png]]
+
+Flowchart for week 1.
+*** Week 2
+[[./flowchart_pt2.png]]
+
+Flowchart for week 2.
+** In the prelab you should include the definitions for the following terms:
+*** Shortest job first
+Priority based scheduling with priorities ranked based on their execution time. 
+*** First come first served
+Schedules jobs in order of their arrival time. (FIFO) 
+*** Foreground-background
+Schedules a newly ready job immediately for a fixed time. If the job isn't
+complete it gets added to the end of a queue which uses strictly round-robin
+scheduling.
+*** Round robin
+All tasks have equal priority. Tasks are alloted a fixed amount of time in which
+to execute called a quantum. If the task is still not complete it gets moved to
+the end of the queue and the task at the beginning of the queue is scheduled.
+*** Polled scheduling
+Polls the task constantly to find when it is done. Foreground-background with no foreground. 
+*** Priority based scheduling
+Assigns priority to incoming tasks and schedules based on highest priority. 
+High priority tasks can preeempt lower priorities.
+*** Priority inversion
+When a high priority task is indirectly preempted by a lower priority task.
+*** Starvation
+When a process is continually denied the resources needed to finish its work. 
+E.g. constantly being preempted. 
+** Furthermore, you should investigate RTAI functions to initialize and signal semaphores in Kernel Space:
+*** rt_sem_init
+*** rt_sem_delete
+*** rt_sem_wait
+*** rt_sem_signal
+** And the following functions: 
+*** rt_sleep 
+*** rt_busy_sleep
