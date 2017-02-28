@@ -1,4 +1,4 @@
-TARGET := lab3
+TARGET := lab3_p1
 #WARN := -W -Wall #-Wmissing-prototype -Wstrict-prototypes
 #INCLUDE := -isystem /lib/modules/`uname -r`/build/include
 INC_PATH := ../../includes

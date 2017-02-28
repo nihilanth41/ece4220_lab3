@@ -36,6 +36,9 @@ static void rt_process(int t) {
 		// Check for button press
 		if(1 == check_button())
 		{	// Button pressed
+			// Yellow and green off
+			*PBDR &= ~(0x40);
+			*PBDR &= ~(0x80);
 			// Turn on red
 			*PBDR |= 0x20;
 			rt_sleep(NUM_PERIODS*period);
