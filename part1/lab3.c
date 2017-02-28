@@ -17,6 +17,7 @@
 
 MODULE_LICENSE("GPL");
 
+#define NUM_PERIODS 1000 
 RTIME period;
 RT_TASK task;
 unsigned long *BasePtr, *PBDR, *PBDDR;	// pointers for port B DR/DDR
@@ -27,23 +28,23 @@ static void rt_process(int t) {
 		// Turn on yellow light, turn off green
 		*PBDR |= 0x40;
 		*PBDR &= ~(0x80);
-		rt_sleep(100*period);
+		rt_sleep(NUM_PERIODS*period);
 		// Turn off yellow light, turn on green
 		*PBDR &= ~(0x40);
 		*PBDR |= 0x80;
-		rt_sleep(100*period);
+		rt_sleep(NUM_PERIODS*period);
 		// Check for button press
 		if(1 == check_button())
 		{	// Button pressed
 			// Turn on red
 			*PBDR |= 0x20;
-			rt_sleep(100*period);
+			rt_sleep(NUM_PERIODS*period);
 			// Turn off
 			*PBDR &= ~(0x20);
 			// Clear button status
 			clear_button();
 		}
-		rt_sleep(100*period);
+
 	}
 }
 
@@ -67,8 +68,7 @@ int init_module(void) {
 	// Green/B7 output
 	*PBDDR |= 0x80;
 	// Red off 
-	*PBDR |= (0x20);
-	//*PBDR &= ~(0x20);
+	*PBDR &= ~(0x20);
 	// Yellow off 
 	*PBDR &= (0x40);
 	// Green off
@@ -76,7 +76,7 @@ int init_module(void) {
         // Set push button as input
 	// Pedestrian button is PORTB0
 	*PBDDR &= ~(1 << 0);
-	*PBDDR &= ~(1 << 4);
+	//*PBDDR &= ~(1 << 4);
 	
 	// Start realtime timer
 	period = start_rt_timer(nano2count(1000000));
