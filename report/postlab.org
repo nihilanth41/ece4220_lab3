@@ -1,0 +1,41 @@
+#+AUTHOR: Zachary Rump
+#+DATE: 2017-03-01
+#+TITLE: ECE 4220
+#+OPTIONS: toc:nil H:4 num:0 ^:nil
+#+LATEX_HEADER: \usepackage[margin=0.5in]{geometry}
+\overfullrule=2cm
+* Lab 3 Report
+** Objectives
+*** Lab Description
+** Implementation
+*** Part 1
+*** Part 2
+*** Flowcharts
+[[./images/flowchart_pt1.png]]`
+
+Flowchart for Part One of Lab Two. 
+
+
+[[./images/flowchart_pt2.png]]`
+
+Flowchart for the Real Time Tasks portion of Lab 2.
+** Experiments and Results
+*** Part 1 
+*** Part 2 
+** Discussion
+*** Part 1
+*** Part 2
+*** Post Lab Questions:
+** Code  
+*** Part 1
+#+NAME: Part 1
+#+ATTR_LATEX: :foat nil
+#+BEGIN_SRC C
+
+#+END_SRC
+*** Part 2
+#+NAME: Part 2
+#+ATTR_LATEX: :foat nil
+#+BEGIN_SRC C
+
+#+END_SRC
