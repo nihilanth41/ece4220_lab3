@@ -6,10 +6,29 @@
 \overfullrule=2cm
 * Lab 3 Report
 ** Objectives
+The main objectives for Lab 3 were to learn about different scheduling
+algorithms, the problems associated with each, and the concepts of priority
+inversion, task starvation, etc.
 *** Lab Description
+The specific objectives of Lab 3 were:
+1. Implement a traffic-light type system using the RTAI libraries
+2. Observe the behavior of the traffic light system with various different task priorities.
 ** Implementation
-*** Part 1
-*** Part 2
+The implementation for part 1 and 2 are very similar. In both cases the goal is
+to setup a traffic-light system which will allow traffic to flow one way at a
+time, and allow pedestrians to cross when requested (by pressing a button.)
+
+In part one, the system is implemented using a single real time task and a
+polling based scheduler is used to determine when to turn lights on and off.
+This is essentially the same behavior as the priority based scheduler used
+in part 2, with all priorities set to the same value.
+
+In part two, the traffic-light system is implemented using three distinct real
+time tasks. Each task is assigned a priority, and different combinations of
+priorities are tested in order to determine how the system behaves in each
+case. Because there are multiple tasks fighting for control of the same
+resource (the memory associated with the DDR, and DR registers), a binary
+semaphore is used 
 *** Flowcharts
 [[./images/flowchart_pt1.png]]`
 
