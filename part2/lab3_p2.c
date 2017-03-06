@@ -20,30 +20,6 @@ static void rt_tl1(int t); // traffic light 1
 static void rt_tl2(int t); // traffic light 2
 static void rt_pl(int t);  // pedestrian light
 
-static void rt_tl1(int t) {
-	// lock sem
-	// led on
-	// wait/busy_wait
-	// turn led off
-	// unlock sem
-}
-
-static void rt_tl2(int t) {
-	// lock sem
-	// led on
-	// wait/busy_wait
-	// turn led off
-	// unlock sem
-}
-
-static void rt_tp(int t) {
-	// lock sem
-	// led on
-	// wait/busy_wait
-	// turn led off
-	// unlock sem
-}
-
 MODULE_LICENSE("GPL");
 
 #define NUM_PERIODS 1000 
@@ -51,35 +27,6 @@ SEM sem;
 RTIME period;
 RT_TASK t1,t2,tp;
 unsigned long *BasePtr, *PBDR, *PBDDR;	// pointers for port B DR/DDR
-
-//static void rt_process(int t) {
-//	while(1)
-//	{
-//		// Turn on yellow light, turn off green
-//		*PBDR |= 0x40;
-//		*PBDR &= ~(0x80);
-//		rt_sleep(NUM_PERIODS*period);
-//		// Turn off yellow light, turn on green
-//		*PBDR &= ~(0x40);
-//		*PBDR |= 0x80;
-//		rt_sleep(NUM_PERIODS*period);
-//		// Check for button press
-//		if(1 == check_button())
-//		{	// Button pressed
-//			// Yellow and green off
-//			*PBDR &= ~(0x40);
-//			*PBDR &= ~(0x80);
-//			// Turn on red
-//			*PBDR |= 0x20;
-//			rt_sleep(NUM_PERIODS*period);
-//			// Turn off
-//			*PBDR &= ~(0x20);
-//			// Clear button status
-//			clear_button();
-//		}
-//
-//	}
-//}
 
 int init_module(void) {
 	// Attempt to map file descriptor
@@ -115,8 +62,9 @@ int init_module(void) {
 	rt_set_periodic_mode();
 	period = start_rt_timer(nano2count(1000000));
 
-	// Initialize semaphore
-	rtai_typed_sem_init(&sem, 0, BIN_SEM);
+	// Initialize semaphore 
+	// Initial value is 1 because we want 1 task to do a rt_sem_wait() without blocking.
+	rt_sem_init(&sem, 1);
 
 	// Initialize rt tasks
 	// 3rd to last arg is priority 0 = highest
@@ -127,7 +75,7 @@ int init_module(void) {
 	rt_task_init(&t2, rt_tl2, 0, 256, 0, 0, 0);
 	rt_task_resume(&t2);
 
-	rt_task_init(&tp, rt_tp, 0, 256, 0, 0, 0);
+	rt_task_init(&tp, rt_pl, 0, 256, 0, 0, 0);
 	rt_task_resume(&tp);
 
 	printk(KERN_INFO "MODULE INSTALLED\n");
@@ -159,3 +107,61 @@ void cleanup_module(void)
 	return;
 }
 
+// Yellow LED
+static void rt_tl1(int t) {
+	while(1)
+	{
+		// Attempt to lock sem -- blocks until retrieved
+		int ret = rt_sem_wait(&sem);
+		// Yellow led on
+		*PBDR |= 0x40;
+		// wait/busy_wait
+		rt_sleep(NUM_PERIODS*period);
+		// Yellow LED off
+		*PBDR &= ~(0x40);
+		// unlock sem
+		rt_sem_signal(&sem);
+	}
+}
+
+// Green LED
+static void rt_tl2(int t) {
+	while(1)
+	{
+		// lock sem
+		int ret = rt_sem_wait(&sem);
+		// Green LED on
+		*PBDR |= 0x80;
+		// wait/busy_wait
+		rt_sleep(NUM_PERIODS*period);
+		// turn led off
+		*PBDR &= ~(0x80);
+		// unlock sem
+		rt_sem_signal(&sem);
+	}
+}
+
+static void rt_pl(int t) {
+	while(1)
+	{
+
+		if(1 == check_button())
+		{
+
+			// lock sem
+			int ret = rt_sem_wait(&sem);
+			// RED LED on
+			*PBDR |= 0x20;
+			// wait/busy_wait
+			rt_sleep(NUM_PERIODS*period);
+			// turn led off
+			*PBDR &= ~(0x20);
+			// unlock sem
+			rt_sem_signal(&sem);
+			// Button pressed
+			clear_button();
+		}
+		else
+			rt_sleep(NUM_PERIODS*period);
+	}
+}
