@@ -28,33 +28,369 @@ time tasks. Each task is assigned a priority, and different combinations of
 priorities are tested in order to determine how the system behaves in each
 case. Because there are multiple tasks fighting for control of the same
 resource (the memory associated with the DDR, and DR registers), a binary
-semaphore is used 
+semaphore is used to provide exclusive access to the resource.
 *** Flowcharts
+#+ATTR_LATEX: :width 237px :height 376px
 [[./images/flowchart_pt1.png]]`
 
-Flowchart for Part One of Lab Two. 
-
+Figure 1: Polling based scheduler.
 
 [[./images/flowchart_pt2.png]]`
 
-Flowchart for the Real Time Tasks portion of Lab 2.
+Figure 2: Real time scheduler using mutexes.
 ** Experiments and Results
 *** Part 1 
+Part one was tested just by installing the module and watching the timing of the lights. 
+The pedestrian button was tested by ensuring that the red light turned on within one polling cycle when the button was pressed.
 *** Part 2 
+Part two was tested in the same way as part one except the priorities of the
+different tasks were varied to see how the behavior changed. The pedestrian
+light was tested under each different priority configuration by pressing it
+erratically and trying to spot unexpected behavior.
 ** Discussion
 *** Part 1
+The main issue encountered in part one was probably misunderstanding the usage
+of the ece4220lab3.o module. I did not realize that it was a kernel module
+initially and thought it was an object file we were supposed to link directly
+into our program. Also the usage of rt_task_init() was a little confusing at first since it's different than lab 2 where pthreads were used.
+Main thing I learned from part 1 was proably just becoming more familiar with the RTAI libraries.
 *** Part 2
+Main issues with part 2 were just coming up with an elegant way of testing all
+the different priority configurations.  Also, finding a way to test out
+rt_busy_wait() without starving the rest of the OS, and remembering to remove
+the rtai_fifos and rtai_lxrt modules before loading the part 2 module.  The main
+thing I learned from part 2 of the lab was semaphores in general. What they are,
+the different types (counting, binary), and how to use them in general
+(i.e. linux userspace), and the rtai semaphores.
 *** Post Lab Questions:
+**** Part 1
+***** Can this implementation be considered real time? Why or why not? 
+The polling implementation wouldn't be considered real time because although the
+polling task itself is a real time task, there is no guarantee that any of the sub-tasks
+(the individual lights) will finish their operations in a given amount of time.
+***** How can you improve the scheduling so the implementation acts more like a real time system?
+The responsiveness could be improved by checking for the pedestrian crossing button more often in the polling loop. 
+**** Part 2
+***** Table of Results
+| Case No. | Priority Combinations | Observations                                                  |
+|----------+-----------------------+---------------------------------------------------------------|
+|        1 | PTL1 = PTL2 = PPL     | Basically runs like part one (RR).                            |
+|        2 | PTL1 = PTL2 > PPL     | PPL never gets scheduled (starved)                            |
+|        3 | PTL1 = PTL2 < PPL     | PPL is much more responsive.                                  |
+|        4 | PTL1 > PTL2 > PPL     | PPL not responsive (starved)                                  |
+|        5 | PTL2 < PTL1 < PPL     | PPL more responsive.                                          |
+|        6 | PTL1 < PTL2 = PPL     | PPL less responsive (button has to be pressed multiple times) |
+|        7 | PTL1 > PTL2 = PPL     | PPL works only when yellow light is active                    |
+****** Which configuration(s) of priorities will lead to a round robin scheduling scheme?
+This is case #1 where all priorities are equal.
+****** Which configuration(s) will cause a task to starve? 
+This appeared to happen in cases 2 and 4 when the PPL had the lowest priority.
+****** What other configurations can you find? 
+Didn't test it but PTL1 = PPL [<|>] PTL2
+***** What are some problems you ran into with this implementation?
+Mostly just issues debugging kernel module via printk statements, and learning how to use binary semaphores.
+***** How did you fix your code to overcome these problems?
+Comment out large chunks of code, test the simplest thing possible first, revert to code from old labs that I know *should* work.
+***** What happens if the pedestrian button is pressed frequently/rapidly? 
+The kernel module to check the buttons seems to handle this well, it just registers as a single press.
+***** What is the difference between rt_busy_sleep() and rt_sleep()? 
+rt_sleep() allows the scheduler to schedule other tasks during the sleep. rt_busy_sleep() 'wastes' cycles in the calling task until the time has elapsed.
+****** Did you use both of them? 
+Yes but only used busy_sleep to test the difference. I replaced all my calls to rt_sleep() with rt_busy_sleep().
+****** Did you experience any problems?
+Locked the whole system up (had to reboot). Also one of the tasks ran, but starved the other two (and the rest of the system apparently).
 ** Code  
 *** Part 1
 #+NAME: Part 1
 #+ATTR_LATEX: :foat nil
 #+BEGIN_SRC C
+#ifndef MODULE 
+#define MODULE
+#endif
 
+#ifndef __KERNEL__
+#define __KERNEL__
+#endif
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <rtai.h>
+#include <rtai_sched.h>
+#include "ece4220lab3.h"
+// from ece4220lab3 
+// int check_button(void); 1 if pressed
+// void clear_button(void);
+
+MODULE_LICENSE("GPL");
+
+#define NUM_PERIODS 1000 
+RTIME period;
+RT_TASK task;
+unsigned long *BasePtr, *PBDR, *PBDDR;	// pointers for port B DR/DDR
+
+static void rt_process(int t) {
+	while(1)
+	{
+		// Turn on yellow light, turn off green
+		*PBDR |= 0x40;
+		*PBDR &= ~(0x80);
+		rt_sleep(NUM_PERIODS*period);
+		// Turn off yellow light, turn on green
+		*PBDR &= ~(0x40);
+		*PBDR |= 0x80;
+		rt_sleep(NUM_PERIODS*period);
+		// Check for button press
+		if(1 == check_button())
+		{	// Button pressed
+			// Yellow and green off
+			*PBDR &= ~(0x40);
+			*PBDR &= ~(0x80);
+			// Turn on red
+			*PBDR |= 0x20;
+			rt_sleep(NUM_PERIODS*period);
+			// Turn off
+			*PBDR &= ~(0x20);
+			// Clear button status
+			clear_button();
+		}
+
+	}
+}
+
+int init_module(void) {
+	// Attempt to map file descriptor
+	BasePtr = (unsigned long *) __ioremap(0x80840000, 4096, 0);
+	if(NULL == BasePtr) 
+	{
+		printk(KERN_INFO "Unable to map memory space\n");
+		return -1;
+	}
+	
+	// Configure PORTB registers
+	PBDR = BasePtr + 1;
+	PBDDR = BasePtr + 5;
+
+	// Red/B5 output	
+	*PBDDR |= 0x20;
+	// Yellow/B6 output
+	*PBDDR |= 0x40;
+	// Green/B7 output
+	*PBDDR |= 0x80;
+	// Red off 
+	*PBDR &= ~(0x20);
+	// Yellow off 
+	*PBDR &= (0x40);
+	// Green off
+	*PBDR &= ~(0x80);
+        // Set push button as input
+	// Pedestrian button is PORTB0
+	*PBDDR &= ~(1 << 0);
+	//*PBDDR &= ~(1 << 4);
+	
+	// Start realtime timer
+	period = start_rt_timer(nano2count(1000000));
+	// Initialize rt task
+	rt_task_init(&task, rt_process, 0, 256, 0, 0, 0);
+	rt_task_resume(&task);
+
+	printk(KERN_INFO "MODULE INSTALLED\n");
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	// Red/B5 output	
+	*PBDDR |= 0x20;
+	// Yellow/B6 output
+	*PBDDR |= 0x40;
+	// Green/B7 output
+	*PBDDR |= 0x80;
+	
+	// Red off
+	*PBDR &= ~(0x20);
+	// Yellow off 
+	*PBDR &= ~(0x40);
+	// Green off
+	*PBDR &= ~(0x80);
+
+	rt_task_delete(&task);
+	stop_rt_timer();
+	
+	printk(KERN_INFO "MODULE REMOVED\n");
+	return;
+}
 #+END_SRC
 *** Part 2
 #+NAME: Part 2
 #+ATTR_LATEX: :foat nil
 #+BEGIN_SRC C
+#ifndef MODULE 
+#define MODULE
+#endif
 
+#ifndef __KERNEL__
+#define __KERNEL__
+#endif
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <rtai.h>
+#include <rtai_sched.h>
+#include <rtai_sem.h>
+#include "ece4220lab3.h"
+// from ece4220lab3 
+// int check_button(void); 1 if pressed
+// void clear_button(void);
+
+static void rt_tl1(int t); // traffic light 1
+static void rt_tl2(int t); // traffic light 2
+static void rt_pl(int t);  // pedestrian light
+
+MODULE_LICENSE("GPL");
+
+#define NUM_PERIODS 1000 
+SEM sem;
+RTIME period;
+RT_TASK t1,t2,tp;
+unsigned long *BasePtr, *PBDR, *PBDDR;	// pointers for port B DR/DDR
+
+int init_module(void) {
+	// Attempt to map file descriptor
+	BasePtr = (unsigned long *) __ioremap(0x80840000, 4096, 0);
+	if(NULL == BasePtr) 
+	{
+		printk(KERN_INFO "Unable to map memory space\n");
+		return -1;
+	}
+	
+	// Configure PORTB registers
+	PBDR = BasePtr + 1;
+	PBDDR = BasePtr + 5;
+
+	// Red/B5 output	
+	*PBDDR |= 0x20;
+	// Yellow/B6 output
+	*PBDDR |= 0x40;
+	// Green/B7 output
+	*PBDDR |= 0x80;
+	// Red off 
+	*PBDR &= ~(0x20);
+	// Yellow off 
+	*PBDR &= (0x40);
+	// Green off
+	*PBDR &= ~(0x80);
+        // Set push button as input
+	// Pedestrian button is PORTB0
+	*PBDDR &= ~(1 << 0);
+	//*PBDDR &= ~(1 << 4);
+	
+	// Start realtime timer
+	rt_set_periodic_mode();
+	period = start_rt_timer(nano2count(1000000));
+
+	// Initialize semaphore 
+	// Initial value is 1 because we want 1 task to do a rt_sem_wait() without blocking.
+	rt_sem_init(&sem, 1);
+
+	// Initialize rt tasks
+	// 3rd to last arg is priority 0 = highest
+	// Equal priorities
+	rt_task_init(&t1, rt_tl1, 0, 256, 0, 0, 0);
+	rt_task_resume(&t1);
+
+	rt_task_init(&t2, rt_tl2, 0, 256, 0, 0, 0);
+	rt_task_resume(&t2);
+
+	rt_task_init(&tp, rt_pl, 0, 256, 0, 0, 0);
+	rt_task_resume(&tp);
+
+	printk(KERN_INFO "MODULE INSTALLED\n");
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	// Red/B5 output	
+	*PBDDR |= 0x20;
+	// Yellow/B6 output
+	*PBDDR |= 0x40;
+	// Green/B7 output
+	*PBDDR |= 0x80;
+	
+	// Red off
+	*PBDR &= ~(0x20);
+	// Yellow off 
+	*PBDR &= ~(0x40);
+	// Green off
+	*PBDR &= ~(0x80);
+
+	rt_task_delete(&t1);
+	rt_task_delete(&t2);
+	rt_task_delete(&tp);
+	stop_rt_timer();
+	
+	printk(KERN_INFO "MODULE REMOVED\n");
+	return;
+}
+
+// Yellow LED
+static void rt_tl1(int t) {
+	while(1)
+	{
+		// Attempt to lock sem -- blocks until retrieved
+		int ret = rt_sem_wait(&sem);
+		// Yellow led on
+		*PBDR |= 0x40;
+		// wait/busy_wait
+		rt_sleep(NUM_PERIODS*period);
+		// Yellow LED off
+		*PBDR &= ~(0x40);
+		// unlock sem
+		rt_sem_signal(&sem);
+	}
+}
+
+// Green LED
+static void rt_tl2(int t) {
+	while(1)
+	{
+		// lock sem
+		int ret = rt_sem_wait(&sem);
+		// Green LED on
+		*PBDR |= 0x80;
+		// wait/busy_wait
+		rt_sleep(NUM_PERIODS*period);
+		// turn led off
+		*PBDR &= ~(0x80);
+		// unlock sem
+		rt_sem_signal(&sem);
+	}
+}
+
+static void rt_pl(int t) {
+	while(1)
+	{
+
+		if(1 == check_button())
+		{
+
+			// lock sem
+			int ret = rt_sem_wait(&sem);
+			// RED LED on
+			*PBDR |= 0x20;
+			// wait/busy_wait
+			rt_sleep(NUM_PERIODS*period);
+			// turn led off
+			*PBDR &= ~(0x20);
+			// unlock sem
+			rt_sem_signal(&sem);
+			// Button pressed
+			clear_button();
+		}
+		else
+			rt_sleep(NUM_PERIODS*period);
+	}
+}
 #+END_SRC
+    
+    
